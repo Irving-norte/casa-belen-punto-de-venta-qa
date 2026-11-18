@@ -1,0 +1,20 @@
+{
+  "name": "casa-belen-punto-de-venta-qa",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Pruebas end-to-end (Playwright) del punto de venta de Casa Belén",
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:local": "QA_SITIO_LOCAL=.sitio playwright test",
+    "test:modulo": "playwright test --grep",
+    "sitio:local": "bash scripts/sitio-local.sh",
+    "reporte": "playwright show-report",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.65.1",
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  }
+}
