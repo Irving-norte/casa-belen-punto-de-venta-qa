@@ -47,9 +47,18 @@ npm run test:local
 npm test -- tests/gastos
 npm test -- --grep "VG-03"
 
+# Viendo el navegador (una ventana a la vez), o con la interfaz de Playwright
+npm run test:local -- --headed --workers=1
+npm run test:local -- tests/sincronizacion --headed --workers=1
+npm run test:local -- --ui
+
 # Ver el último reporte
 npm run reporte
 ```
+
+Los scripts (`sitio:local`, `test:local` y el servidor local) son de Node:
+funcionan igual en Windows, macOS y Linux, sin Python ni bash. `sitio:local`
+solo instala las dependencias de la app si no las tiene.
 
 Variables útiles: `QA_URL` (probar otra dirección), `PW_CHROME_PATH` (usar el
 Chrome del sistema), `PW_SIN_VIDEO=1` (sin grabación de video),

@@ -48,7 +48,8 @@ export default defineConfig({
 
   webServer: sitioLocal
     ? {
-        command: `python3 -m http.server ${PUERTO_LOCAL} --bind 127.0.0.1 --directory ${sitioLocal}`,
+        // Servidor en Node (sin Python): funciona igual en Windows.
+        command: `node scripts/servidor-local.mjs "${sitioLocal}" ${PUERTO_LOCAL}`,
         url: urlLocal,
         reuseExistingServer: !enCI,
         timeout: 30_000,
