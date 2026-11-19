@@ -1,0 +1,7 @@
+export * from './apertura.page'
+export * from './cobrar.page'
+export * from './corte.page'
+export * from './gastos.page'
+export * from './ticket.page'
+export * from './vender.page'
+export * from './ventas.page'

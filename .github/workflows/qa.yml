@@ -1,0 +1,100 @@
+name: QA
+
+# Construye la app en modo QA desde su repo, la publica en el GitHub Pages
+# de este repo (entorno QA) y corre las pruebas de Playwright contra esa
+# misma construcción.
+
+on:
+  workflow_dispatch:
+    inputs:
+      rama_app:
+        description: Rama del repo de la app a construir y probar
+        default: main
+        required: true
+  push:
+    branches: [main]
+  # Para que el repo de la app lo dispare más adelante (requiere un token).
+  repository_dispatch:
+    types: [app-actualizada]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: qa
+  cancel-in-progress: false
+
+env:
+  RAMA_APP: ${{ github.event.inputs.rama_app || github.event.client_payload.rama || 'main' }}
+  RUTA_QA: /casa-belen-punto-de-venta-qa/
+
+jobs:
+  construir-app:
+    name: Construir app (QA)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: Irving-norte/casa-belen-punto-de-venta
+          ref: ${{ env.RAMA_APP }}
+          path: app
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --no-audit --no-fund
+        working-directory: app
+      - run: npm run build
+        working-directory: app
+        env:
+          VITE_ENTORNO: qa
+          VITE_BASE: ${{ env.RUTA_QA }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-qa
+          path: app/dist
+          retention-days: 7
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: app/dist
+
+  publicar:
+    name: Publicar entorno QA
+    needs: construir-app
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.despliegue.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@v5
+      - id: despliegue
+        uses: actions/deploy-pages@v4
+
+  pruebas:
+    name: Pruebas Playwright
+    needs: construir-app
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - uses: actions/download-artifact@v4
+        with:
+          name: app-qa
+          path: .sitio/casa-belen-punto-de-venta-qa
+      - run: npm run typecheck
+      # Se prueba exactamente la construcción que se publica, servida localmente.
+      - run: npx playwright test
+        env:
+          QA_SITIO_LOCAL: .sitio
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: reporte-playwright
+          path: playwright-report
+          retention-days: 14
