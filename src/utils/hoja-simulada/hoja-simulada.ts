@@ -146,6 +146,24 @@ export class HojaSimulada {
     poner('Nota', campos.nota)
   }
 
+  /**
+   * Escribe en cualquier columna de Existencias como si la persona lo
+   * tecleara: una fórmula se interpreta con la configuración regional del
+   * libro (en es_ES una «,» entre argumentos da #ERROR!).
+   */
+  teclearEnExistencias(clave: string, encabezado: string, valor: Valor): void {
+    const pestana = this.pestana('Existencias')
+    const fila = this.buscarFila(pestana, 'Clave', clave)
+    pestana.getRange(fila, this.encabezados(pestana).indexOf(encabezado) + 1).setValues([[valor]])
+  }
+
+  /** Fórmula de una celda de Existencias (vacía si no tiene). */
+  formulaEnExistencias(clave: string, encabezado: string): string {
+    const pestana = this.pestana('Existencias')
+    const fila = this.buscarFila(pestana, 'Clave', clave)
+    return pestana.getRange(fila, this.encabezados(pestana).indexOf(encabezado) + 1).getFormulas()[0]![0]!
+  }
+
   /** Casa Belén → Registrar entradas y conteos. */
   registrarEntradasYConteos() {
     return this.script.registrarEntradasYConteos()
