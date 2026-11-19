@@ -55,6 +55,12 @@ jobs:
           name: app-qa
           path: app/dist
           retention-days: 7
+      # El Apps Script de la hoja: las pruebas lo corren sobre una hoja simulada.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apps-script
+          path: app/apps-script
+          retention-days: 7
       - uses: actions/upload-pages-artifact@v3
         with:
           path: app/dist
@@ -87,6 +93,10 @@ jobs:
         with:
           name: app-qa
           path: .sitio/casa-belen-punto-de-venta-qa
+      - uses: actions/download-artifact@v4
+        with:
+          name: apps-script
+          path: .sitio/apps-script
       - run: npm run typecheck
       # Se prueba exactamente la construcción que se publica, servida localmente.
       - run: npx playwright test

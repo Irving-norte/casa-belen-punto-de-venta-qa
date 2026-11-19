@@ -6,9 +6,11 @@ import {
   CobrarPage,
   CortePage,
   GastosPage,
+  SincronizacionPage,
   TicketPage,
   VenderPage,
   VentasPage,
+  VincularPage,
 } from '@/pages'
 import { borrarDatosApp } from '@/utils'
 import { CapturaWhatsApp } from './whatsapp'
@@ -23,6 +25,8 @@ export interface Pantallas {
   ventas: VentasPage
   gastos: GastosPage
   corte: CortePage
+  vincular: VincularPage
+  sincronizacion: SincronizacionPage
 }
 
 interface Fixtures {
@@ -68,6 +72,8 @@ export const test = base.extend<Fixtures>({
       ventas: new VentasPage(page),
       gastos: new GastosPage(page),
       corte: new CortePage(page),
+      vincular: new VincularPage(page),
+      sincronizacion: new SincronizacionPage(page),
     })
   },
 
