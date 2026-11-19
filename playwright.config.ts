@@ -1,16 +1,14 @@
 import { defineConfig, devices } from '@playwright/test'
-import { PUERTO_LOCAL, RUTA_BASE_QA, TABLET_HORIZONTAL, URL_QA } from './src/constants'
+import { PUERTO_LOCAL, RUTA_BASE_QA, TABLET_HORIZONTAL, urlDePruebas } from './src/constants'
 
 /**
- * A dónde apuntan las pruebas:
- *  - QA_URL=<url>               → cualquier URL (p. ej. la de QA publicada).
- *  - QA_SITIO_LOCAL=<carpeta>   → sirve una app ya construida desde esa carpeta
- *                                 (debe contener casa-belen-punto-de-venta-qa/).
- *  - Ninguna                    → el entorno QA publicado en GitHub Pages.
+ * A dónde apuntan las pruebas: ver urlDePruebas() en src/constants/entorno.ts.
+ * Con QA_SITIO_LOCAL=<carpeta> se sirve una app ya construida desde esa carpeta
+ * (debe contener casa-belen-punto-de-venta-qa/ y apps-script/).
  */
 const sitioLocal = process.env.QA_SITIO_LOCAL
 const urlLocal = `http://127.0.0.1:${PUERTO_LOCAL}${RUTA_BASE_QA}`
-const baseURL = process.env.QA_URL ?? (sitioLocal ? urlLocal : URL_QA)
+const baseURL = urlDePruebas()
 const enCI = !!process.env.CI
 
 export default defineConfig({

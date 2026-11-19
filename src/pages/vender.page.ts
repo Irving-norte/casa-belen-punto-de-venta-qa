@@ -47,7 +47,17 @@ export class VenderPage {
   }
 
   nombresDeTarjetas(): Promise<string[]> {
-    return this.tarjetas.locator('span:first-child').allInnerTexts()
+    return this.tarjetas.getByTestId('producto-nombre').allInnerTexts()
+  }
+
+  /** «Quedan 3» / «Sin existencias» de una tarjeta (solo con hoja vinculada). */
+  existenciaDe(nombre: string, precio?: number): Locator {
+    return this.tarjeta(nombre, precio).getByTestId('producto-existencia')
+  }
+
+  /** Botón de un color en el diálogo de variantes. */
+  variante(nombre: string): Locator {
+    return this.page.locator(`[data-testid="variante"][data-variante="${nombre}"]`)
   }
 
   /** Línea del carrito por nombre exacto (con o sin variante). */
@@ -70,7 +80,7 @@ export class VenderPage {
     await this.tarjeta(producto.nombre).click()
 
     if (producto.variante) {
-      await this.dialogo.boton(producto.variante).click()
+      await this.variante(producto.variante).click()
     } else if (producto.capturado) {
       await this.dialogo.teclado.teclear(precioVisible)
       await this.dialogo.boton('Agregar').click()
