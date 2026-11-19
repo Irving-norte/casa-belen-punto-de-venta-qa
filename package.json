@@ -6,9 +6,9 @@
   "type": "module",
   "scripts": {
     "test": "playwright test",
-    "test:local": "QA_SITIO_LOCAL=.sitio playwright test",
+    "test:local": "node scripts/test-local.mjs",
     "test:modulo": "playwright test --grep",
-    "sitio:local": "bash scripts/sitio-local.sh",
+    "sitio:local": "node scripts/sitio-local.mjs",
     "reporte": "playwright show-report",
     "typecheck": "tsc --noEmit"
   },
