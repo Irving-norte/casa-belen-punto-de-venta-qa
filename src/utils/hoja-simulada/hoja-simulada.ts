@@ -56,6 +56,8 @@ interface ScriptCargado extends Context {
   doPost(e: { postData: { contents: string; type: string } }): { contenido: string }
   prepararHoja(entorno: EntornoHoja): { categorias: number; productos: number; existencias: number; errores: unknown[] }
   registrarEntradasYConteos(): { entradas: number; ajustes: number; sinDiferencia: number; errores: unknown[] }
+  avisoDeConteo(ahora: Date): string
+  describirMomento(fecha: Date, ahora: Date): string
   calcularExistencias(): Record<string, { cantidad: number; unidad: string }>
   claveDeLaTablet(crear: boolean): string
   enlaceDeVinculacion(entorno: EntornoHoja, url: string, clave: string): string
@@ -167,6 +169,16 @@ export class HojaSimulada {
   /** Casa Belén → Registrar entradas y conteos. */
   registrarEntradasYConteos() {
     return this.script.registrarEntradasYConteos()
+  }
+
+  /** Texto del aviso que muestra el menú antes de registrar conteos ('' si no hay conteos). */
+  avisoDeConteo(ahora = new Date()): string {
+    return this.script.avisoDeConteo(ahora)
+  }
+
+  /** Cómo el script describe un momento («hoy a las 7:42 p. m. (hace 3 min)»). */
+  describirMomento(fecha: Date, ahora: Date): string {
+    return this.script.describirMomento(fecha, ahora)
   }
 
   /** Edita una celda de Productos (p. ej. un precio), buscando el producto por ID. */
@@ -358,7 +370,31 @@ export class HojaSimulada {
           return salida
         },
       },
-      Utilities: { getUuid: () => randomUUID() },
+      Utilities: {
+        getUuid: () => randomUUID(),
+        formatDate: (fecha: Date, zona: string, patron: string) => {
+          const partes = Object.fromEntries(
+            new Intl.DateTimeFormat('en-CA', {
+              timeZone: zona,
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit',
+              hourCycle: 'h23',
+            })
+              .formatToParts(new Date(Number(fecha)))
+              .map((p) => [p.type, p.value]),
+          )
+          const formatos: Record<string, string> = {
+            'yyyy-MM-dd': `${partes.year}-${partes.month}-${partes.day}`,
+            'HH:mm': `${partes.hour}:${partes.minute}`,
+          }
+          const r = formatos[patron]
+          if (r === undefined) throw new Error(`Utilities.formatDate: la hoja simulada no conoce el patrón ${patron}`)
+          return r
+        },
+      },
       ScriptApp: { getService: () => ({ getUrl: () => this.url }) },
       HtmlService: {
         createHtmlOutput: () => {
