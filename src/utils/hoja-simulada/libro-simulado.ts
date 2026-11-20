@@ -21,6 +21,8 @@ export class PestanaSimulada {
   private celdas: Valor[][] = []
   /** Celdas escritas con apóstrofo: texto aunque empiecen con «=». */
   private readonly comoTexto = new Set<string>()
+  /** Fórmulas que la hoja no pudo interpretar (se ven como #ERROR!). */
+  private readonly conError = new Set<string>()
   private maxFilas = 1000
   private readonly maxColumnas = 26
   filasCongeladas = 0
@@ -105,12 +107,20 @@ export class PestanaSimulada {
     return typeof v === 'string' && v.startsWith('=') && !this.comoTexto.has(`${fila},${columna}`)
   }
 
-  escribir(fila: number, columna: number, valor: Valor, forzarTexto = false): void {
+  /** true si la celda tiene una fórmula que la hoja no pudo interpretar. */
+  tieneErrorDeAnalisis(fila: number, columna: number): boolean {
+    return this.conError.has(`${fila},${columna}`)
+  }
+
+  escribir(fila: number, columna: number, valor: Valor, forzarTexto = false, errorDeAnalisis = false): void {
     const f = (this.celdas[fila - 1] ??= [])
     while (f.length < columna - 1) f.push(VACIO)
     f[columna - 1] = valor
-    if (forzarTexto) this.comoTexto.add(`${fila},${columna}`)
-    else this.comoTexto.delete(`${fila},${columna}`)
+    const llave = `${fila},${columna}`
+    if (forzarTexto) this.comoTexto.add(llave)
+    else this.comoTexto.delete(llave)
+    if (errorDeAnalisis) this.conError.add(llave)
+    else this.conError.delete(llave)
   }
 
   private rangoA1(a1: string): RangoSimulado {
@@ -145,7 +155,7 @@ export class RangoSimulado {
       for (let c = 0; c < this.numColumnas; c++) {
         const v = this.pestana.leer(this.fila + f, this.columna + c)
         const formula = this.pestana.esFormula(this.fila + f, this.columna + c)
-        fila.push(formula ? this.pestana.libro.evaluar(this.pestana, String(v)) : v)
+        fila.push(formula ? this.pestana.libro.evaluarCelda(this.pestana, this.fila + f, this.columna + c) : v)
       }
       filas.push(fila)
     }
@@ -177,7 +187,13 @@ export class RangoSimulado {
         if (typeof v === 'number' && !Number.isFinite(v)) throw new Error(`setValues: número inválido ${v}`)
         // Un apóstrofo al inicio fuerza texto y no forma parte del valor.
         const forzado = typeof v === 'string' && v.startsWith("'")
-        this.pestana.escribir(this.fila + f, this.columna + c, forzado ? v.slice(1) : v, forzado)
+        if (forzado) return this.pestana.escribir(this.fila + f, this.columna + c, v.slice(1), true)
+        // Como al teclearla: la fórmula se interpreta con la configuración regional del libro.
+        if (typeof v === 'string' && v.startsWith('=')) {
+          const canonica = this.pestana.libro.interpretarFormula(v)
+          return this.pestana.escribir(this.fila + f, this.columna + c, canonica ?? v, false, canonica === null)
+        }
+        this.pestana.escribir(this.fila + f, this.columna + c, v)
       }),
     )
     return this
@@ -227,9 +243,17 @@ export class ProteccionSimulada {
   }
 }
 
+/**
+ * Configuraciones regionales con coma decimal: ahí los argumentos de una
+ * fórmula se separan con «;» y una «,» es error de análisis (#ERROR!).
+ */
+const CON_PUNTO_Y_COMA = new Set(['es_ES', 'es_AR', 'es_CO', 'es_CL', 'pt_BR', 'de_DE', 'fr_FR', 'it_IT'])
+
 export class LibroSimulado {
   readonly pestanas: PestanaSimulada[] = []
   zonaHoraria = 'America/Los_Angeles'
+  /** Como una hoja nueva de una cuenta en inglés (EE. UU.). */
+  configuracionRegional = 'en_US'
   activa?: PestanaSimulada
 
   constructor(private readonly nombre = 'Casa Belén · Inventario') {
@@ -266,6 +290,33 @@ export class LibroSimulado {
     this.zonaHoraria = zona
   }
 
+  getSpreadsheetLocale(): string {
+    return this.configuracionRegional
+  }
+
+  setSpreadsheetLocale(configuracion: string): void {
+    if (!/^[a-z]{2}_[A-Z]{2}$/.test(configuracion)) throw new Error(`Configuración regional inválida: ${configuracion}`)
+    this.configuracionRegional = configuracion
+  }
+
+  /**
+   * Como Google Sheets al recibir una fórmula: con coma decimal (p. ej.
+   * es_ES) los argumentos van con «;» y una «,» no se entiende; con punto
+   * decimal (en_US, es_MX) se aceptan «,» y «;» (la «;» la cambia a «,»).
+   * Regresa la fórmula guardada (siempre con «,») o null si no se entiende.
+   */
+  interpretarFormula(formula: string): string | null {
+    const puntoYComa = CON_PUNTO_Y_COMA.has(this.configuracionRegional)
+    let entreComillas = false
+    let canonica = ''
+    for (const c of formula) {
+      if (c === '"') entreComillas = !entreComillas
+      if (!entreComillas && c === ',' && puntoYComa) return null
+      canonica += !entreComillas && c === ';' ? ',' : c
+    }
+    return canonica
+  }
+
   setActiveSheet(p: PestanaSimulada): PestanaSimulada {
     this.activa = p
     return p
@@ -296,13 +347,16 @@ export class LibroSimulado {
       const minimo = pestana.leer(Number(fila), columnaANumero(colMin))
       if (minimo === VACIO) return ''
       const existencia = this.evaluarCelda(pestana, Number(fila), columnaANumero(colEx))
+      if (typeof existencia === 'string' && existencia.startsWith('#')) return existencia
       return Number(existencia) <= Number(minimo) ? 'Reabastecer' : ''
     }
     return '#FÓRMULA'
   }
 
-  private evaluarCelda(pestana: PestanaSimulada, fila: number, columna: number): Valor {
+  evaluarCelda(pestana: PestanaSimulada, fila: number, columna: number): Valor {
     const v = pestana.leer(fila, columna)
-    return pestana.esFormula(fila, columna) ? this.evaluar(pestana, String(v)) : v
+    if (!pestana.esFormula(fila, columna)) return v
+    if (pestana.tieneErrorDeAnalisis(fila, columna)) return '#ERROR!'
+    return this.evaluar(pestana, String(v))
   }
 }

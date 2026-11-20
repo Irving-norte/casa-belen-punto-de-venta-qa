@@ -46,6 +46,7 @@ test.describe('Hoja · Apps Script', () => {
 
     expect(hoja.libro.getSheets().map((p) => p.getName())).toEqual(PESTANAS)
     expect(hoja.libro.zonaHoraria).toBe('America/Mexico_City')
+    expect(hoja.libro.getSpreadsheetLocale()).toBe('es_MX')
     expect(resumen).toMatchObject({ categorias: 16, productos: 206, errores: [] })
 
     const existencias = hoja.renglones('Existencias')
@@ -284,5 +285,67 @@ test.describe('Hoja · Apps Script', () => {
     expect(r.ok, r.mensaje).toBe(true)
     expect(hoja.renglones('Movimientos')).toHaveLength(1040)
     expect(hoja.existencia('Soya APF')).toBe(-260 * 2500)
+  })
+
+  test('HS-11 Las fórmulas de Existencias funcionan aunque la hoja use coma decimal (España)', () => {
+    const { hoja, pedir } = hojaLista()
+    hoja.libro.setSpreadsheetLocale('es_ES')
+    hoja.agregarProducto({ Categoría: 'Aromas 30 ml', Nombre: 'Maracuyá', 'Precio General': 58, Activo: 'Sí' })
+
+    const r = pedir('sincronizar', { ventas: [ventaRegistro({ folio: 1, lineas: [MECHERO] })] })
+
+    expect(r.ok, r.mensaje).toBe(true)
+    // El renglón nuevo se escribió con la hoja ya en es_ES.
+    expect(hoja.renglones('Existencias').find((e) => e.Clave === 'aromas-30-maracuya')).toMatchObject({
+      Existencia: 0,
+      Estado: '',
+    })
+    expect(hoja.existencia('complementos-mechero')).toBe(-1)
+    expect(hoja.renglones('Existencias').filter((e) => typeof e.Existencia !== 'number')).toEqual([])
+  })
+
+  test('HS-12 La hoja repara sola las fórmulas de Existencias (con #ERROR! o con un número encima)', () => {
+    const { hoja, pedir } = hojaLista()
+    const pestana = hoja.pestana('Existencias')
+    const n = pestana.getLastRow() - 1
+    // Como quedó una hoja real: fórmulas con «,» en una hoja de España
+    // (#ERROR!), corridas un renglón, y un número tecleado encima.
+    hoja.libro.setSpreadsheetLocale('es_ES')
+    pestana.getRange(2, 5, n, 1).setValues(
+      Array.from({ length: n }, (_, i) => [`=SUMIF(Movimientos!D:D,A${i + 1},Movimientos!G:G)`]),
+    )
+    pestana.getRange(2, 7, n, 1).setValues(
+      Array.from({ length: n }, (_, i) => [`=IF(F${i + 2}="","",IF(E${i + 2}<=F${i + 2},"Reabastecer",""))`]),
+    )
+    hoja.teclearEnExistencias('complementos-mechero', 'Existencia', 5)
+    hoja.teclearEnExistencias('complementos-mechero', 'Mínimo', 10)
+    expect(hoja.renglones('Existencias').find((e) => e.Clave === 'variables-cirio')).toMatchObject({
+      Existencia: '#ERROR!',
+      Estado: '#ERROR!',
+    })
+
+    // 1) La tablet sincroniza: se reparan todas y la venta ya cuenta.
+    pedir('sincronizar', { ventas: [ventaRegistro({ folio: 1, lineas: [MECHERO] })] })
+
+    const existencias = hoja.renglones('Existencias')
+    expect(existencias.filter((e) => typeof e.Existencia !== 'number' || String(e.Estado).startsWith('#'))).toEqual([])
+    expect(existencias.find((e) => e.Clave === 'complementos-mechero')).toMatchObject({
+      Existencia: -1,
+      Mínimo: 10,
+      Estado: 'Reabastecer',
+    })
+    const filaMechero = existencias.findIndex((e) => e.Clave === 'complementos-mechero') + 2
+    expect(hoja.formulaEnExistencias('complementos-mechero', 'Existencia')).toBe(
+      `=SUMIF(Movimientos!D:D,A${filaMechero},Movimientos!G:G)`,
+    )
+
+    // 2) Alguien vuelve a escribir encima; registrar un conteo también la repara.
+    hoja.teclearEnExistencias('complementos-mechero', 'Existencia', 5)
+    hoja.capturar('complementos-mechero', { conteo: 5 })
+    hoja.registrarEntradasYConteos()
+    expect(hoja.existencia('complementos-mechero')).toBe(5)
+    expect(hoja.existenciasDelScript()['complementos-mechero']).toEqual({ cantidad: 5, unidad: 'pieza' })
+    pedir('sincronizar', { ventas: [ventaRegistro({ folio: 2, lineas: [MECHERO] })] })
+    expect(hoja.existencia('complementos-mechero')).toBe(4)
   })
 })
