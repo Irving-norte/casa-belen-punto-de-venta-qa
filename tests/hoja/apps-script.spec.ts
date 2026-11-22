@@ -348,4 +348,39 @@ test.describe('Hoja · Apps Script', () => {
     pedir('sincronizar', { ventas: [ventaRegistro({ folio: 2, lineas: [MECHERO] })] })
     expect(hoja.existencia('complementos-mechero')).toBe(4)
   })
+
+  test('HS-13 Antes de registrar conteos, la hoja avisa cuándo sincronizó la tablet', () => {
+    const { hoja, pedir } = hojaLista()
+
+    // Solo una entrada: suma, no compara; no hay aviso.
+    hoja.capturar('complementos-mechero', { entrada: 10 })
+    expect(hoja.avisoDeConteo()).toBe('')
+
+    // Con un conteo y la tablet sin sincronizar nunca.
+    hoja.capturar('complementos-escamador', { conteo: 3 })
+    expect(hoja.avisoDeConteo()).toContain('La tablet todavía no se ha sincronizado con esta hoja.')
+    expect(hoja.avisoDeConteo()).toContain('¿Registrar los conteos?')
+
+    // Después de sincronizar, dice cuándo.
+    pedir('sincronizar', {})
+    const aviso = hoja.avisoDeConteo(new Date(Date.now() + 5 * 60_000))
+    expect(aviso).toMatch(
+      /^La tablet se sincronizó por última vez (hoy a las? \d{1,2}:\d{2} [ap]\. m\. \(hace 5 min\)|ayer a las? \d{1,2}:\d{2} [ap]\. m\.)\./,
+    )
+    expect(aviso).toContain('contesta «No» y espera a que la tablet diga «Hoja al día»')
+
+    // El aviso no registra nada por sí solo.
+    expect(hoja.renglones('Movimientos')).toEqual([])
+
+    // Formato de la hora (zona de la Ciudad de México).
+    const ahora = new Date('2026-11-20T19:45:00-06:00')
+    expect(hoja.describirMomento(new Date('2026-11-20T19:42:00-06:00'), ahora)).toBe('hoy a las 7:42 p. m. (hace 3 min)')
+    expect(hoja.describirMomento(new Date('2026-11-20T19:44:50-06:00'), ahora)).toBe(
+      'hoy a las 7:44 p. m. (hace menos de un minuto)',
+    )
+    expect(hoja.describirMomento(new Date('2026-11-20T13:05:00-06:00'), ahora)).toBe('hoy a la 1:05 p. m. (hace 6 h)')
+    expect(hoja.describirMomento(new Date('2026-11-20T00:10:00-06:00'), ahora)).toBe('hoy a las 12:10 a. m. (hace 19 h)')
+    expect(hoja.describirMomento(new Date('2026-11-19T21:05:00-06:00'), ahora)).toBe('ayer a las 9:05 p. m.')
+    expect(hoja.describirMomento(new Date('2026-11-18T10:30:00-06:00'), ahora)).toBe('el 18/11/2026 a las 10:30 a. m.')
+  })
 })
