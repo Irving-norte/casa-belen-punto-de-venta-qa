@@ -4,9 +4,9 @@ import { registrarVenta } from '@/flows'
 
 test.describe('Ventas · cliente Alumno', () => {
   for (const caso of VENTAS_ALUMNO) {
-    test(`${caso.id} · ${caso.nombre}`, async ({ app, whatsapp, cajaAbierta }) => {
+    test(`${caso.id} · ${caso.nombre}`, async ({ app, impresora, cajaAbierta }) => {
       void cajaAbierta
-      await registrarVenta(app, caso, whatsapp)
+      await registrarVenta(app, caso, impresora)
     })
   }
 })

@@ -7,7 +7,7 @@ Pruebas end-to-end con **Playwright + TypeScript** del
 **https://irving-norte.github.io/casa-belen-punto-de-venta-qa/**
 
 Los casos están en [`docs/casos-de-prueba.xlsx`](docs/casos-de-prueba.xlsx). Cada
-prueba lleva el ID de su caso (VG-01, VA-03, BU-02, GA-01, CO-01, HS-04, SI-06…),
+prueba lleva el ID de su caso (VG-01, VA-03, BU-02, GA-01, CO-01, TI-02, HS-04, SI-06…),
 así el reporte se lee junto con el Excel.
 
 > **Regla:** la tablet de la tienda solo abre producción. El entorno QA tiene su
@@ -89,6 +89,25 @@ la respuesta, y sin contestar la consulta previa de CORS.
 - La prueba con una hoja de Google real (de pruebas, nunca la de la tienda) es
   el caso manual **MA-02**.
 
+### Ticket impreso (impresora simulada)
+
+Antes de que cargue la app, cada prueba reemplaza el Bluetooth del navegador
+(Web Serial y Web Bluetooth) por una impresora simulada (`src/fixtures/impresora.ts`)
+que le pasa a la prueba cada byte. `src/utils/ticket-impreso.ts` lee esos bytes
+ESC/POS como los imprimiría la impresora (renglones, negritas, tamaño doble,
+página de códigos, corte) y `src/factories/ticket.ts` arma, sin usar el código
+de la app, el ticket que debe salir.
+
+- Las ventas (VG, VA, BU) imprimen su ticket y comparan el papel renglón por
+  renglón, y la vista previa de la pantalla contra el papel.
+- `tests/ticket/` (**TI**): conectar la primera vez, impresora recordada,
+  reimprimir, cancelar la lista, impresora apagada, nombres largos, 42 letras y
+  sin acentos, impresión de prueba, Bluetooth LE, navegador sin Bluetooth y
+  conectar desde el encabezado sin abrir caja.
+- Como Chrome para Android: el permiso de Bluetooth clásico se recuerda al
+  recargar y el de Bluetooth LE no.
+- La impresión en una impresora real es el caso manual **MA-01**.
+
 ---
 
 ## Estructura
@@ -99,15 +118,15 @@ Resources, Setup, Tests) adaptada a cómo se organiza un proyecto TypeScript:
 | Carpeta | Equivale a | Contenido |
 |---|---|---|
 | `src/data/` | Data | Los casos del Excel: productos, cantidades, pagos y montos esperados |
-| `src/constants/` | Constants | URL del entorno, número de prueba, fondo inicial, textos fijos de la app |
+| `src/constants/` | Constants | URL del entorno, fondo inicial, textos fijos de la app |
 | `src/types/` | Objects | Interfaces de TypeScript: la forma de un caso, un pago, un gasto, una venta esperada |
-| `src/factories/` | Instances | Construyen lo que la app debe mostrar a partir de los datos (venta esperada, ticket, corte) y los registros que la tablet sube a la hoja (`registros-hoja.ts`) |
+| `src/factories/` | Instances | Construyen lo que la app debe mostrar a partir de los datos (venta esperada, ticket impreso, corte) y los registros que la tablet sube a la hoja (`registros-hoja.ts`) |
 | `src/components/` | Elements | Piezas de pantalla reutilizables con sus localizadores: teclado numérico, diálogo, navegación |
 | `src/pages/` | Pages | Una clase por pantalla: localizadores y acciones (abrir caja, agregar producto, pagar…) |
 | `src/flows/` | — | Flujos de negocio completos (registrar venta, registrar gastos), reutilizados por el corte |
-| `src/fixtures/` | Setup | Preparación de cada prueba: pantallas listas, caja abierta, captura de WhatsApp, limpieza y hoja simulada vinculada (`hoja.ts`) |
-| `src/utils/` | Resources | Formato de dinero, lectura del enlace de WhatsApp, borrado de datos de la app y la hoja simulada (`hoja-simulada/`) |
-| `tests/<módulo>/` | Tests | `ventas-general`, `ventas-alumno`, `busqueda`, `gastos`, `corte`, `hoja`, `sincronizacion` |
+| `src/fixtures/` | Setup | Preparación de cada prueba: pantallas listas, caja abierta, impresora simulada, limpieza y hoja simulada vinculada (`hoja.ts`) |
+| `src/utils/` | Resources | Formato de dinero, lectura del ticket ESC/POS, borrado de datos de la app y la hoja simulada (`hoja-simulada/`) |
+| `tests/<módulo>/` | Tests | `ventas-general`, `ventas-alumno`, `busqueda`, `gastos`, `corte`, `ticket`, `hoja`, `sincronizacion` |
 | `docs/` | — | `casos-de-prueba.xlsx` |
 
 En C#, *Objects* son las clases con sus propiedades e *Instances* los objetos
@@ -125,9 +144,9 @@ componente, que es la forma habitual del patrón Page Object en Playwright.
   (franja visible). Si apunta a producción, se detiene.
 - **Hoja simulada, nunca real.** La hoja de las pruebas vive en memoria y se
   descarta al terminar cada prueba.
-- **WhatsApp simulado.** Las pruebas nunca abren WhatsApp: capturan el enlace
-  `wa.me/524431417837` y validan el ticket que lleva. El envío real es el caso
-  manual **MA-01**.
+- **Impresora simulada, nunca real.** Las pruebas nunca tocan una impresora:
+  el Bluetooth del navegador se reemplaza por una impresora simulada que
+  guarda los bytes. La impresión real es el caso manual **MA-01**.
 - **El corte es el nodo.** CO-01 repite en una sola sesión todas las ventas y
   gastos de los demás casos (los toma de `src/data`, no los copia) y valida el
   balance por forma de pago.

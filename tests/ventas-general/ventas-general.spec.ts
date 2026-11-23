@@ -7,7 +7,7 @@ import { formatear } from '@/utils'
 test.describe('Ventas · cliente General', () => {
   const [apertura, ...resto] = VENTAS_GENERAL
 
-  test(`${apertura!.id} · ${apertura!.nombre}`, async ({ app, whatsapp }) => {
+  test(`${apertura!.id} · ${apertura!.nombre}`, async ({ app, impresora }) => {
     await test.step('Abrir caja: valida el monto tecleado y su guardado', async () => {
       await expect(app.apertura.titulo).toBeVisible()
       await app.apertura.abrir.click()
@@ -25,13 +25,13 @@ test.describe('Ventas · cliente General', () => {
       await expect(app.vender.carritoVacio).toBeVisible()
     })
 
-    await registrarVenta(app, apertura!, whatsapp)
+    await registrarVenta(app, apertura!, impresora)
   })
 
   for (const caso of resto) {
-    test(`${caso.id} · ${caso.nombre}`, async ({ app, whatsapp, cajaAbierta }) => {
+    test(`${caso.id} · ${caso.nombre}`, async ({ app, impresora, cajaAbierta }) => {
       void cajaAbierta
-      await registrarVenta(app, caso, whatsapp)
+      await registrarVenta(app, caso, impresora)
     })
   }
 })

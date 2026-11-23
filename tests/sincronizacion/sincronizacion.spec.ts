@@ -1,7 +1,7 @@
 import { CAMBIOS_DE_CATALOGO, CONTEOS, GASTOS, MECHERO, PIGMENTO_ROJO, VENTAS_GENERAL } from '@/data'
 import { NOMBRE_HOJA, expect, rutaDeEnlace, test } from '@/fixtures/hoja'
 import { registrarGastos, registrarVenta } from '@/flows'
-import { TELEFONO_PRUEBA, URL_QA, urlDePruebas } from '@/constants'
+import { URL_QA, urlDePruebas } from '@/constants'
 import { HojaSimulada, appServidaLocalmente, hayAppsScript } from '@/utils/hoja-simulada'
 import { formatear } from '@/utils'
 
@@ -96,7 +96,7 @@ test.describe('Sincronización con la hoja', () => {
   test('SI-04 Venta, gasto y corte suben solos a la hoja', async ({ app, hoja, hojaVinculada, cajaAbierta }) => {
     void hojaVinculada
     void cajaAbierta
-    const venta = await registrarVenta(app, VG_03, null, { enviarTicket: false, revisarVentasDelDia: false })
+    const venta = await registrarVenta(app, VG_03, null, { imprimirTicket: false, revisarVentasDelDia: false })
     await app.navegacion.ir('Gastos')
     await registrarGastos(app, GA_02.gastos, { id: 'SI-04' })
     const efectivoEsperado = 500 - GA_02.esperado.total
@@ -160,7 +160,7 @@ test.describe('Sincronización con la hoja', () => {
       await expect(app.navegacion.estadoHoja).toHaveText('Sin internet · se guarda en la tablet')
     })
 
-    const venta = await registrarVenta(app, VG_02, null, { enviarTicket: false, revisarVentasDelDia: false })
+    const venta = await registrarVenta(app, VG_02, null, { imprimirTicket: false, revisarVentasDelDia: false })
 
     await test.step('La venta espera en la tablet', async () => {
       await expect(app.navegacion.estadoHoja).toHaveText('Sin internet · 1 por subir')
@@ -180,12 +180,12 @@ test.describe('Sincronización con la hoja', () => {
   })
 
   test('SI-06 Si la hoja falla o la respuesta se pierde, se reintenta sin duplicar', async ({
-    app, hoja, hojaVinculada, cajaAbierta, whatsapp, page,
+    app, hoja, hojaVinculada, cajaAbierta, impresora, page,
   }) => {
     void hojaVinculada
     void cajaAbierta
     hoja.fallarSiguiente()
-    await registrarVenta(app, VG_02, whatsapp, { enviarTicket: true, revisarVentasDelDia: false })
+    await registrarVenta(app, VG_02, impresora, { imprimirTicket: true, revisarVentasDelDia: false })
 
     await test.step('Error 500 de la hoja: la venta queda pendiente y se avisa', async () => {
       await expect(app.navegacion.estadoHoja).toHaveText('Error con la hoja · 1 por subir')
@@ -211,10 +211,13 @@ test.describe('Sincronización con la hoja', () => {
       expect(hoja.renglones('Movimientos')).toHaveLength(3)
     })
 
-    await test.step('El teléfono del cliente nunca sale de la tablet', async () => {
+    await test.step('Lo del ticket impreso no sale de la tablet', async () => {
       await page.goto('./#/ventas')
       await expect(page.getByTestId('venta-sin-ticket')).toHaveCount(0)
-      expect(JSON.stringify(hoja.peticiones)).not.toContain(TELEFONO_PRUEBA)
+      const subido = JSON.stringify(hoja.peticiones.filter((p) => p.accion === 'sincronizar'))
+      expect(subido, 'La venta sí se subió').toContain('"folio":1')
+      expect(subido).not.toContain('ticketImpresoEn')
+      expect(subido).not.toContain('telefonoCliente')
     })
   })
 
@@ -343,7 +346,7 @@ test.describe('Sincronización con la hoja', () => {
       await expect(app.navegacion.estadoHoja).toHaveText('Hoja sin vincular')
     })
 
-    await registrarVenta(app, VG_02, null, { enviarTicket: false, revisarVentasDelDia: false })
+    await registrarVenta(app, VG_02, null, { imprimirTicket: false, revisarVentasDelDia: false })
 
     await test.step('La venta no sube y queda esperando', async () => {
       await app.sincronizacion.abrir()
