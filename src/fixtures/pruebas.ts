@@ -13,7 +13,7 @@ import {
   VincularPage,
 } from '@/pages'
 import { borrarDatosApp } from '@/utils'
-import { CapturaWhatsApp } from './whatsapp'
+import { ImpresoraSimulada } from './impresora'
 
 /** Todas las pantallas de la app, listas para cada prueba. */
 export interface Pantallas {
@@ -31,7 +31,8 @@ export interface Pantallas {
 
 interface Fixtures {
   app: Pantallas
-  whatsapp: CapturaWhatsApp
+  /** Siempre activa: ninguna prueba toca una impresora real. */
+  impresora: ImpresoraSimulada
   /** Precondición «Caja abierta con fondo de $500». Solo corre si la prueba la pide. */
   cajaAbierta: void
   /** Automática: abre la app al empezar y borra sus datos al terminar. */
@@ -40,7 +41,9 @@ interface Fixtures {
 
 export const test = base.extend<Fixtures>({
   datosLimpios: [
-    async ({ page }, use, testInfo) => {
+    async ({ page, impresora }, use, testInfo) => {
+      // La impresora simulada se instala antes de abrir la app.
+      void impresora
       await page.goto('./')
       await expect(page.getByTestId('franja-qa'), 'La app debe ser la de QA, nunca la de producción').toBeVisible()
 
@@ -77,8 +80,8 @@ export const test = base.extend<Fixtures>({
     })
   },
 
-  whatsapp: async ({ context }, use) => {
-    await use(await CapturaWhatsApp.activar(context))
+  impresora: async ({ context }, use) => {
+    await use(await ImpresoraSimulada.activar(context))
   },
 
   cajaAbierta: async ({ app }, use) => {

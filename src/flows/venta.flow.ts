@@ -1,9 +1,17 @@
 import { expect, test } from '@playwright/test'
-import { TELEFONO_PRUEBA, TELEFONO_PRUEBA_INTERNACIONAL, TEXTOS } from '@/constants'
-import { busquedaEsperada, renglonesTicket, totalAlAgregar, ventaEsperada } from '@/factories'
-import type { CapturaWhatsApp, Pantallas } from '@/fixtures'
+import { TEXTOS } from '@/constants'
+import {
+  busquedaEsperada,
+  TICKET_NORMAL,
+  ticketEsperado,
+  totalAlAgregar,
+  ventaEsperada,
+  type FormatoTicket,
+  type RenglonEsperado,
+} from '@/factories'
+import type { ImpresoraSimulada, Pantallas } from '@/fixtures'
 import type { CasoBusqueda, CasoVenta, PagoCaso, VentaEsperada } from '@/types'
-import { formatear, sumar } from '@/utils'
+import { formatear, sumar, type TicketImpreso } from '@/utils'
 
 /**
  * Flujos de negocio reutilizables: los usan las pruebas de cada módulo y el
@@ -13,8 +21,8 @@ import { formatear, sumar } from '@/utils'
 export interface OpcionesVenta {
   /** Folio que la app debe asignar (1 en un navegador limpio). */
   folio?: number
-  /** Enviar el ticket por WhatsApp y validarlo. En el corte se omite. */
-  enviarTicket?: boolean
+  /** Imprimir el ticket y validar el papel. En el corte se omite. */
+  imprimirTicket?: boolean
   /** Revisar la venta en «Ventas del día» (resumen solo cuando es la única venta). */
   revisarVentasDelDia?: boolean
 }
@@ -26,10 +34,10 @@ export interface OpcionesVenta {
 export async function registrarVenta(
   app: Pantallas,
   caso: CasoVenta,
-  whatsapp: CapturaWhatsApp | null,
+  impresora: ImpresoraSimulada | null,
   opciones: OpcionesVenta = {},
 ): Promise<VentaEsperada> {
-  const { folio = 1, enviarTicket = true, revisarVentasDelDia = true } = opciones
+  const { folio = 1, imprimirTicket = true, revisarVentasDelDia = true } = opciones
   const venta = ventaEsperada(caso, folio)
   const { vender } = app
   await app.navegacion.ir('Vender')
@@ -81,8 +89,8 @@ export async function registrarVenta(
   })
 
   await cobrarYTerminar(app, venta, caso.pagos, caso.tarjetaExcedida)
-  if (enviarTicket && whatsapp) await enviarTicketPorWhatsApp(app, venta, whatsapp)
-  if (revisarVentasDelDia) await revisarEnVentasDelDia(app, venta, { enviado: enviarTicket, unica: folio === 1 })
+  if (imprimirTicket && impresora) await imprimirYRevisarTicket(app, venta, impresora)
+  if (revisarVentasDelDia) await revisarEnVentasDelDia(app, venta, { impreso: imprimirTicket, unica: folio === 1 })
   return venta
 }
 
@@ -93,10 +101,10 @@ export async function registrarVenta(
 export async function registrarVentaPorBusqueda(
   app: Pantallas,
   caso: CasoBusqueda,
-  whatsapp: CapturaWhatsApp | null,
+  impresora: ImpresoraSimulada | null,
   opciones: OpcionesVenta = {},
 ): Promise<VentaEsperada> {
-  const { folio = 1, enviarTicket = true, revisarVentasDelDia = true } = opciones
+  const { folio = 1, imprimirTicket = true, revisarVentasDelDia = true } = opciones
   const venta = busquedaEsperada(caso, folio)
   const { vender } = app
   await app.navegacion.ir('Vender')
@@ -128,8 +136,8 @@ export async function registrarVentaPorBusqueda(
   })
 
   await cobrarYTerminar(app, venta, caso.pagos)
-  if (enviarTicket && whatsapp) await enviarTicketPorWhatsApp(app, venta, whatsapp)
-  if (revisarVentasDelDia) await revisarEnVentasDelDia(app, venta, { enviado: enviarTicket, unica: folio === 1 })
+  if (imprimirTicket && impresora) await imprimirYRevisarTicket(app, venta, impresora)
+  if (revisarVentasDelDia) await revisarEnVentasDelDia(app, venta, { impreso: imprimirTicket, unica: folio === 1 })
   return venta
 }
 
@@ -180,29 +188,68 @@ export async function cobrarYTerminar(
   })
 }
 
-export async function enviarTicketPorWhatsApp(
+/**
+ * Imprime el ticket desde la pantalla del ticket. Si la impresora todavía no
+ * está elegida, la app pide conectarla y, al elegirla, imprime enseguida.
+ */
+export async function imprimirYRevisarTicket(
   app: Pantallas,
   venta: VentaEsperada,
-  whatsapp: CapturaWhatsApp,
+  impresora: ImpresoraSimulada,
+  formato: FormatoTicket = TICKET_NORMAL,
 ): Promise<void> {
   const { ticket } = app
-  await test.step(`${venta.id} · enviar ticket por WhatsApp a ${TELEFONO_PRUEBA}`, async () => {
-    await ticket.telefono.fill(TELEFONO_PRUEBA)
-    const enlace = await whatsapp.capturar(() => ticket.enviar.click())
+  await test.step(`${venta.id} · imprimir el ticket`, async () => {
+    const antes = impresora.trabajos().length
+    const yaImpreso = (await ticket.impreso.count()) > 0
+    await expect(ticket.imprimir).toHaveText(yaImpreso ? 'Imprimir de nuevo' : 'Imprimir ticket')
+    await ticket.imprimir.click()
 
-    expect(enlace.numero).toBe(TELEFONO_PRUEBA_INTERNACIONAL)
-    for (const renglon of renglonesTicket(venta)) expect(enlace.texto).toContain(renglon)
-    if (!venta.alumno) expect(enlace.texto).not.toContain(TEXTOS.ticket.clienteAlumno)
-    // La vista previa en pantalla es exactamente lo que se envía.
-    await expect(ticket.texto).toHaveText(enlace.texto, { useInnerText: true })
-    await expect(ticket.enviado).toContainText('Ticket enviado a las')
+    if (!impresora.recordada) {
+      await expect(ticket.panel.aviso).toBeVisible()
+      await expect(ticket.panel.pasos).toBeVisible()
+      await ticket.panel.buscar.click()
+      await expect(ticket.panel.raiz).toBeHidden()
+    }
+
+    await expect(ticket.impreso).toContainText('Ticket impreso a las')
+    await expect(ticket.imprimir).toHaveText('Imprimir de nuevo')
+    await expect(ticket.error).toHaveCount(0)
+    expect(impresora.trabajos(), 'Un solo ticket por toque').toHaveLength(antes + 1)
+
+    const papel = impresora.ultimo()
+    revisarTicket(papel, ticketEsperado(venta, formato), formato)
+    // La vista previa en pantalla es exactamente el papel.
+    expect(await ticket.textoDeVista()).toEqual(papel.renglones.map((r) => r.texto))
   })
+}
+
+/** Compara el papel con lo esperado: texto, tamaño y negritas de cada renglón. */
+export function revisarTicket(papel: TicketImpreso, esperado: RenglonEsperado[], formato: FormatoTicket): void {
+  const textos = papel.renglones.map((r) => r.texto)
+  const esperados = esperado.map((e, i) =>
+    typeof e.texto === 'string' ? e.texto : e.texto.test(textos[i] ?? '') ? textos[i] : String(e.texto),
+  )
+  expect(textos, 'Renglones del ticket impreso').toEqual(esperados)
+  expect(papel.renglones.map((r) => r.grande), 'Renglones en tamaño doble').toEqual(esperado.map((e) => !!e.grande))
+  expect(papel.renglones.map((r) => r.negritas.map((n) => n.trim())), 'Negritas').toEqual(esperado.map((e) => e.negritas ?? []))
+  for (const r of papel.renglones) {
+    expect(r.texto.length, `«${r.texto}» cabe en el papel`).toBeLessThanOrEqual(r.grande ? formato.columnas / 2 : formato.columnas)
+  }
+  expect(papel.cortado, 'Corta el papel al final').toBe(true)
+  expect(papel.comandosDesconocidos).toEqual([])
+  if (formato.acentos) {
+    expect(papel.paginaDeCodigos, 'Página de códigos PC850').toBe(2)
+    expect(papel.sinModoChino).toBe(true)
+  } else {
+    expect(papel.usaBytesAltos, 'Sin acentos: solo letras básicas').toBe(false)
+  }
 }
 
 export async function revisarEnVentasDelDia(
   app: Pantallas,
   venta: VentaEsperada,
-  { enviado, unica }: { enviado: boolean; unica: boolean },
+  { impreso, unica }: { impreso: boolean; unica: boolean },
 ): Promise<void> {
   const { navegacion, ventas } = app
   await test.step(`${venta.id} · aparece en Ventas del día`, async () => {
@@ -215,7 +262,7 @@ export async function revisarEnVentasDelDia(
     await expect(fila.getByTestId('venta-folio')).toHaveText(`#${venta.folio}`)
     await expect(fila.getByTestId('venta-formas')).toHaveText(venta.formas + (venta.alumno ? ' · Alumno' : ''))
     await expect(fila.getByTestId('venta-total')).toHaveText(formatear(venta.total))
-    await expect(fila.getByTestId('venta-sin-ticket')).toHaveCount(enviado ? 0 : 1)
+    await expect(fila.getByTestId('venta-sin-ticket')).toHaveCount(impreso ? 0 : 1)
     await navegacion.ir('Vender')
   })
 }

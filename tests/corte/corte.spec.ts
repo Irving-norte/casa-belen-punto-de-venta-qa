@@ -23,11 +23,11 @@ test.describe('Corte de caja', () => {
 
     await test.step(`Registrar las ${CORTE.esperado.ventas} ventas del día`, async () => {
       for (const caso of CORTE.ventas) {
-        ventas.push(await registrarVenta(app, caso, null, { folio: ventas.length + 1, enviarTicket: false, revisarVentasDelDia: false }))
+        ventas.push(await registrarVenta(app, caso, null, { folio: ventas.length + 1, imprimirTicket: false, revisarVentasDelDia: false }))
       }
       for (const caso of CORTE.busquedas) {
         ventas.push(
-          await registrarVentaPorBusqueda(app, caso, null, { folio: ventas.length + 1, enviarTicket: false, revisarVentasDelDia: false }),
+          await registrarVentaPorBusqueda(app, caso, null, { folio: ventas.length + 1, imprimirTicket: false, revisarVentasDelDia: false }),
         )
       }
       // El ticket queda en pantalla; se vuelve a Vender para la siguiente.

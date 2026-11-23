@@ -20,9 +20,13 @@ export const TEXTOS = {
   corte: {
     cuadra: 'La caja cuadra exacto.',
   },
-  ticket: {
-    encabezado: 'CERERÍA CASA BELÉN',
-    clienteAlumno: 'Cliente: Alumno',
-    despedida: '¡Gracias por tu compra!',
+  impresora: {
+    noResponde:
+      'La impresora no responde. Revisa que esté encendida, con papel y cerca de la tablet, y vuelve a intentar.',
+    cancelada:
+      'No se eligió ninguna impresora. Si no aparece en la lista, emparéjala primero en Ajustes › Bluetooth de la tablet.',
+    sinSoporte: 'Este navegador no puede usar impresoras Bluetooth. Abre la app en Google Chrome de la tablet.',
+    pruebaEnviada: 'Prueba enviada. Revisa los acentos y que la regla quepa en un renglón.',
+    soloBle: 'Así solo se ven impresoras Bluetooth LE. Para las demás, instala la app desde Google Chrome.',
   },
 } as const

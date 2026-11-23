@@ -8,11 +8,14 @@ export class Navegacion {
   readonly cajaAbierta: Locator
   /** «Hoja al día», «2 por subir», «Sin internet · …», «Hoja sin vincular»… */
   readonly estadoHoja: Locator
+  /** «Impresora» / «Sin impresora»: abre el panel de la impresora. */
+  readonly impresora: Locator
 
   constructor(private readonly page: Page) {
     this.franjaQa = page.getByTestId('franja-qa')
     this.cajaAbierta = page.getByTestId('caja-abierta')
     this.estadoHoja = page.getByTestId('estado-hoja')
+    this.impresora = page.getByTestId('boton-impresora')
   }
 
   pestana(seccion: Seccion): Locator {

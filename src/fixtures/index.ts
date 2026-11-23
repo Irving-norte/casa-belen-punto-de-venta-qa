@@ -1,2 +1,2 @@
+export * from './impresora'
 export * from './pruebas'
-export * from './whatsapp'
